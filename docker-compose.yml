@@ -12,8 +12,7 @@ services:
       - ./.caddy-credentials:/etc/caddy/credentials:ro
       - caddy_data:/data
       - caddy_config:/config
-    environment_file:
-      - .env
+    env_file: .env
     depends_on:
       - frontend
       - backend
