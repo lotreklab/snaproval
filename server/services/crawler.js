@@ -313,7 +313,7 @@ async function processUrl(browser, url, jobId, index, highlightLinks = true) {
  * @param {boolean} highlightLinks - Whether to highlight external links
  */
 async function crawlWebsite(urls, jobId, isResuming = false, highlightLinks = true) {
-  const browser = await puppeteer.launch();
+  const browser = await puppeteer.launch({args: ['--no-sandbox']});
 
   // Handle cookie banners before launching the browser
   const page = await browser.newPage();
