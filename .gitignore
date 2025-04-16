@@ -26,4 +26,3 @@ dist-ssr
 server/output
 .env
 *.db
-*.sql
