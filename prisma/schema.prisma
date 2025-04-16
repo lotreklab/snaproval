@@ -1,0 +1,39 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Job {
+  id            String   @id @default(cuid())
+  jobId         String   @unique
+  sitemapUrl    String
+  totalUrls     Int
+  processedUrls Int      @default(0)
+  isRunning     Boolean  @default(true)
+  highlightLinks Boolean  @default(true)
+  startTime     DateTime
+  completedTime DateTime?
+  urls          Url[]
+
+  @@map("jobs")
+}
+
+model Url {
+  id          String   @id @default(cuid())
+  url         String
+  status      String   @default("to_do") // to_do, completed
+  imagePath   String?
+  job         Job      @relation(fields: [jobId], references: [jobId])
+  jobId       String
+  processedAt DateTime?
+
+  @@map("urls")
+}

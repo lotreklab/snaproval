@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  caddy:
+    image: caddy:2.7-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./.caddy-credentials:/etc/caddy/credentials:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - web
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    restart: unless-stopped
+    networks:
+      - web
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    restart: unless-stopped
+    volumes:
+      - output_data:/app/data
+      - output_data:/app/server/output
+      - db_data:/app/prisma/database
+      - .env:/app/.env
+    networks:
+      - web
+    environment:
+      - NODE_ENV=production
+
+volumes:
+  caddy_data:
+  caddy_config:
+  output_data:
+  db_data:
+
+networks:
+  web:
+    driver: bridge 

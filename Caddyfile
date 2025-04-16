@@ -1,0 +1,41 @@
+{$SNAPROVAL_HOSTNAME:localhost} {
+    tls {
+        protocols tls1.2 tls1.3
+        curves x25519
+    }
+
+    # Handle API requests
+    handle /api/* {
+        reverse_proxy backend:3000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote}
+            header_up X-Forwarded-For {remote}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # Proxy everything else to the frontend
+    handle {
+        reverse_proxy frontend:80 {
+            header_up Host {host}
+            header_up X-Real-IP {remote}
+            header_up X-Forwarded-For {remote}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # Gzip compression
+    encode gzip
+
+    # Security headers
+    header {
+        # enable HSTS
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        # disable clients from sniffing the media type
+        X-Content-Type-Options nosniff
+        # keep referrer data off of HTTP connections
+        Referrer-Policy no-referrer-when-downgrade
+        # Enable cross-site filter (XSS) and tell browser to block detected attacks
+        X-XSS-Protection "1; mode=block"
+    }
+}
