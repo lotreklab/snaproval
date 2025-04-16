@@ -13,7 +13,7 @@ RUN npm install
 COPY . .
 
 # Setup node
-RUN npm run setup
+RUN npm run prisma generate
 
 # Build the application
 RUN npm run build
