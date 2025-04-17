@@ -59,6 +59,24 @@ export async function cleanupOldExports(days = 7) {
       }
       removedCount++;
     }
+
+    // Remove directories without a corresponding job in the database
+    const allJobs = await prisma.job.findMany({
+      select: {
+        jobId: true
+      }
+    });
+    const jobIdsInDb = new Set(allJobs.map(job => job.jobId));
+    const allDirs = fs.readdirSync(outputDir, { withFileTypes: true })
+      .filter(dirent => dirent.isDirectory())
+      .map(dirent => dirent.name);
+    const dirsWithoutJob = allDirs.filter(dir => !jobIdsInDb.has(dir) && dir.match(/^\d{13}$/));
+    for (const dir of dirsWithoutJob) {
+      const dirPath = path.join(outputDir, dir);
+      console.log(`Removing directory without corresponding job: ${dirPath}`);
+      fs.rmSync(dirPath, { recursive: true, force: true });
+      removedCount++;
+    }
     
     console.log(`Cleanup completed. Removed ${removedCount} old export jobs.`);
   } catch (error) {

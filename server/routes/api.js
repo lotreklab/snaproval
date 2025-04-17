@@ -2,57 +2,68 @@ import express from 'express';
 import { parseString } from 'xml2js';
 import axios from 'axios';
 import { createJobDirectories, createScreenshotsZip, getJobFiles } from '../utils/fileSystem.js';
-import { createJob, getJob, getAllJobs, jobs } from '../models/jobManager.js';
+import { createJob, getJob, getAllJobs, jobs, cancelJob } from '../models/jobManager.js';
 import { crawlWebsite } from '../services/crawler.js';
 
 const router = express.Router();
 
 /**
- * Start crawling a website from a sitemap URL
+ * Start crawling a website from a sitemap URL or direct URLs
  */
 router.post('/crawl', async (req, res) => {
   try {
-    const { sitemapUrl, highlightLinks = true } = req.body;
-    
-    if (!sitemapUrl) {
-      return res.status(400).json({ error: 'Sitemap URL is required' });
-    }
+    const { sitemapUrl, urls, highlightLinks = true } = req.body;
     
     // Create a job-specific directory
     const jobId = Date.now().toString();
     const { jobDir, jobScreenshotDir, jobPdfDir } = createJobDirectories(jobId);
     
-    // Fetch and parse sitemap
-    const response = await axios.get(sitemapUrl);
-    const sitemapXml = response.data;
+    let urlsToProcess = [];
     
-    let urls = [];
-    parseString(sitemapXml, (err, result) => {
-      if (err) {
-        return res.status(400).json({ error: 'Invalid sitemap XML' });
+    // Handle sitemap URL input
+    if (sitemapUrl) {
+      if (!sitemapUrl) {
+        return res.status(400).json({ error: 'Sitemap URL is required' });
       }
       
-      if (result.urlset && result.urlset.url) {
-        urls = result.urlset.url.map(urlObj => urlObj.loc[0]);
-      }
-    });
+      // Fetch and parse sitemap
+      const response = await axios.get(sitemapUrl);
+      const sitemapXml = response.data;
+      
+      parseString(sitemapXml, (err, result) => {
+        if (err) {
+          return res.status(400).json({ error: 'Invalid sitemap XML' });
+        }
+        
+        if (result.urlset && result.urlset.url) {
+          urlsToProcess = result.urlset.url.map(urlObj => urlObj.loc[0]);
+        }
+      });
+    } 
+    // Handle direct URLs input
+    else if (urls && Array.isArray(urls)) {
+      urlsToProcess = urls.filter(url => url && typeof url === 'string' && url.trim() !== '');
+    }
+    else {
+      return res.status(400).json({ error: 'Either a sitemap URL or a list of URLs is required' });
+    }
     
-    if (urls.length === 0) {
-      return res.status(400).json({ error: 'No URLs found in sitemap' });
+    if (urlsToProcess.length === 0) {
+      return res.status(400).json({ error: 'No valid URLs found to process' });
     }
     
     // Create job record in database and memory
-    await createJob(jobId, sitemapUrl, urls, highlightLinks);
+    await createJob(jobId, sitemapUrl || 'Direct URLs', urlsToProcess, highlightLinks);
     
     // Start crawling process
     res.json({ 
       message: 'Crawling started', 
-      totalUrls: urls.length,
+      totalUrls: urlsToProcess.length,
       jobId
     });
     
     // Launch browser and start crawling
-    await crawlWebsite(urls, jobId, false, highlightLinks);
+    await crawlWebsite(urlsToProcess, jobId, false, highlightLinks);
     
   } catch (error) {
     console.error('Crawl error:', error);
@@ -82,7 +93,8 @@ router.get('/status/:jobId', async (req, res) => {
     
     res.json({
       jobId: dbJob.jobId,
-      status: dbJob.isRunning ? 'running' : 'completed',
+      status: dbJob.status,
+      isRunning: dbJob.isRunning,
       filesGenerated: completedUrls,
       totalUrls: dbJob.totalUrls,
       processedUrls: completedUrls,
@@ -113,6 +125,7 @@ router.get('/jobs', async (req, res) => {
         totalUrls: job.totalUrls,
         processedUrls: job.urls.filter(url => url.status === 'completed').length,
         isRunning: job.isRunning,
+        status: job.status,
         startTime: job.startTime.toISOString(),
         completedTime: job.completedTime ? job.completedTime.toISOString() : null
       }))
@@ -126,9 +139,21 @@ router.get('/jobs', async (req, res) => {
 /**
  * Download all screenshots as ZIP for a specific job
  */
-router.get('/download/:jobId', (req, res) => {
+router.get('/download/:jobId', async (req, res) => {
   try {
     const { jobId } = req.params;
+    
+    // Check if job exists and get its status
+    const job = await getJob(jobId);
+    
+    if (!job) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+    
+    // Prevent downloads for cancelled jobs
+    if (job.status === 'cancelled') {
+      return res.status(403).json({ error: 'Downloads are not available for cancelled jobs' });
+    }
     
     // Create ZIP file
     const { zipFilePath, zipFileName } = createScreenshotsZip(jobId);
@@ -143,12 +168,20 @@ router.get('/download/:jobId', (req, res) => {
 /**
  * Default download endpoint for backward compatibility
  */
-router.get('/download', (req, res) => {
+router.get('/download', async (req, res) => {
   try {
     // Default to latest job
     const latestJob = jobs[0];
     if (!latestJob) {
       return res.status(404).json({ error: 'No jobs found' });
+    }
+    
+    // Check job status from database
+    const dbJob = await getJob(latestJob.jobId);
+    
+    // Prevent downloads for cancelled jobs
+    if (dbJob && dbJob.status === 'cancelled') {
+      return res.status(403).json({ error: 'Downloads are not available for cancelled jobs' });
     }
     
     // Create ZIP file
@@ -158,6 +191,38 @@ router.get('/download', (req, res) => {
   } catch (error) {
     console.error('Download error:', error);
     res.status(500).json({ error: 'Error creating zip file' });
+  }
+});
+
+/**
+ * Cancel a running job
+ */
+router.post('/cancel/:jobId', async (req, res) => {
+  const { jobId } = req.params;
+  
+  try {
+    // Find job by ID from database
+    const dbJob = await getJob(jobId);
+    
+    if (!dbJob) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+    
+    if (!dbJob.isRunning) {
+      return res.status(400).json({ error: 'Job is not running' });
+    }
+    
+    // Cancel the job
+    await cancelJob(jobId);
+    
+    res.json({
+      jobId: dbJob.jobId,
+      status: 'cancelled',
+      message: 'Job canceled successfully'
+    });
+  } catch (error) {
+    console.error('Error canceling job:', error);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 

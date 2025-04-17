@@ -6,6 +6,14 @@ const jobs = ref([]);
 const selectedJob = ref(null);
 const isLoading = ref(false);
 const error = ref('');
+const cancelLoading = ref(false);
+
+// Helper function to determine the CSS class based on status
+const getStatusClass = (status) => {
+  return status === 'running' ? 'running' :
+         status === 'completed' ? 'completed' :
+         status === 'cancelled' ? 'cancelled' : '';
+};
 
 // Fetch all jobs when component is mounted
 const fetchJobs = async () => {
@@ -41,7 +49,49 @@ const fetchJobDetails = async (jobId) => {
 
 // Download specific job results
 const downloadJob = (jobId) => {
+  // Find the job in our local data
+  const job = jobs.value.find(j => j.jobId === jobId);
+  
+  // Prevent download if job was cancelled
+  if (job && job.status === 'cancelled') {
+    error.value = 'Download not available for cancelled jobs';
+    return;
+  }
+  
   window.open(`/api/download/${jobId}`, '_blank');
+};
+
+// Cancel a running job
+const cancelJob = async (jobId) => {
+  if (!jobId) return;
+  
+  try {
+    cancelLoading.value = true;
+    error.value = '';
+    
+    const response = await axios.post(`/api/cancel/${jobId}`);
+    
+    if (response.data.status === 'cancelled') {
+      // Update the job status in the jobs list
+      const jobIndex = jobs.value.findIndex(job => job.jobId === jobId);
+      if (jobIndex !== -1) {
+        jobs.value[jobIndex].isRunning = false;
+        jobs.value[jobIndex].status = 'cancelled';
+      }
+      
+      // Also update the selected job if it's the same one
+      if (selectedJob.value && selectedJob.value.jobId === jobId) {
+        selectedJob.value.status = 'cancelled';
+        selectedJob.value.isRunning = false;
+      }
+      
+      error.value = 'Job canceled successfully';
+    }
+  } catch (err) {
+    error.value = err.response?.data?.error || 'Failed to cancel job';
+  } finally {
+    cancelLoading.value = false;
+  }
 };
 
 // View job details
@@ -94,21 +144,41 @@ onMounted(() => {
       <div v-for="job in jobs" :key="job.jobId" class="job-card" @click="viewJobDetails(job.jobId)">
         <div class="job-header">
           <h3>Job ID: {{ job.jobId }}</h3>
-          <span class="job-status" :class="job.isRunning ? 'running' : 'completed'">
-            {{ job.isRunning ? 'Running' : 'Completed' }}
+          <span class="job-status" :class="getStatusClass(job.status)">
+            {{ job.status.charAt(0).toUpperCase() + job.status.slice(1) }}
           </span>
         </div>
         
         <div class="job-details">
-          <p><strong>Sitemap URL:</strong> {{ job.sitemapUrl }}</p>
+          <p><strong>Source:</strong> 
+            <span v-if="job.sitemapUrl === 'Direct URLs'">
+              Direct URLs
+            </span>
+            <span v-else>
+              {{ job.sitemapUrl }}
+            </span>
+          </p>
           <p><strong>Progress:</strong> {{ job.processedUrls }} / {{ job.totalUrls }} URLs</p>
           <p><strong>Started:</strong> {{ new Date(job.startTime).toLocaleString() }}</p>
           <p v-if="job.completedTime"><strong>Completed:</strong> {{ new Date(job.completedTime).toLocaleString() }}</p>
         </div>
         
         <div class="job-actions">
-          <button @click.stop="downloadJob(job.jobId)" class="download-button">Download</button>
+          <button 
+            @click.stop="downloadJob(job.jobId)" 
+            class="download-button"
+            :disabled="job.status === 'cancelled'"
+            :title="job.status === 'cancelled' ? 'Download not available for cancelled jobs' : 'Download job results'"
+          >Download</button>
           <button @click.stop="viewJobDetails(job.jobId)" class="view-details-button">View Details</button>
+          <button 
+            v-if="job.isRunning" 
+            @click.stop="cancelJob(job.jobId)" 
+            class="cancel-button"
+            :disabled="cancelLoading"
+          >
+            {{ cancelLoading ? 'Canceling...' : 'Cancel Job' }}
+          </button>
         </div>
       </div>
     </div>
@@ -122,8 +192,27 @@ onMounted(() => {
         </div>
         
         <div class="modal-body">
-          <p><strong>Status:</strong> {{ selectedJob.status }}</p>
+          <p><strong>Status:</strong> <span class="job-status-text" :class="getStatusClass(selectedJob.status)">{{ selectedJob.status.charAt(0).toUpperCase() + selectedJob.status.slice(1) }}</span></p>
           <p><strong>Progress:</strong> {{ selectedJob.processedUrls }} / {{ selectedJob.totalUrls }} URLs</p>
+          
+          <div v-if="selectedJob.isRunning" class="modal-actions">
+            <button 
+              @click="cancelJob(selectedJob.jobId)" 
+              class="cancel-button"
+              :disabled="cancelLoading"
+            >
+              {{ cancelLoading ? 'Canceling...' : 'Cancel Job' }}
+            </button>
+          </div>
+          
+          <div v-if="!selectedJob.isRunning && selectedJob.status !== 'cancelled'" class="modal-actions">
+            <button 
+              @click="downloadJob(selectedJob.jobId)" 
+              class="download-button"
+            >
+              Download Results
+            </button>
+          </div>
           
           <h4>URLs Status</h4>
           <div class="url-list">
@@ -265,6 +354,12 @@ h1 {
   border: 1px solid rgba(76, 175, 80, 0.3);
 }
 
+.job-status.cancelled {
+  background-color: rgba(244, 67, 54, 0.2);
+  color: #F44336;
+  border: 1px solid rgba(244, 67, 54, 0.3);
+}
+
 .job-details {
   margin-bottom: 1rem;
 }
@@ -309,6 +404,34 @@ h1 {
 
 .view-details-button:hover {
   background-color: var(--card-hover);
+}
+
+.cancel-button {
+  background-color: #dc3545;
+  color: white;
+  border: 1px solid #dc3545;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  flex: 1;
+}
+
+.cancel-button:hover {
+  background-color: #c82333;
+  border-color: #bd2130;
+}
+
+.cancel-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.modal-actions {
+  margin: 1rem 0;
+  display: flex;
+  justify-content: flex-start;
 }
 
 /* Modal Styles */
@@ -423,6 +546,12 @@ h1 {
   border: 1px solid rgba(76, 175, 80, 0.3);
 }
 
+.url-status.cancelled {
+  background-color: rgba(244, 67, 54, 0.2);
+  color: #F44336;
+  border: 1px solid rgba(244, 67, 54, 0.3);
+}
+
 .url-text {
   flex: 1;
   word-break: break-all;
@@ -441,5 +570,21 @@ h1 {
 
 .url-image a:hover {
   opacity: 0.8;
+}
+
+.job-status-text {
+  font-weight: 500;
+}
+
+.job-status-text.running {
+  color: #FFC107;
+}
+
+.job-status-text.completed {
+  color: #4CAF50;
+}
+
+.job-status-text.cancelled {
+  color: #F44336;
 }
 </style>

@@ -41,6 +41,7 @@ function loadJobsIntoMemory(incompleteJobs) {
       totalUrls: job.totalUrls,
       processedUrls: job.processedUrls,
       isRunning: job.isRunning,
+      status: job.status,
       startTime: job.startTime.toISOString(),
       completedTime: job.completedTime ? job.completedTime.toISOString() : null,
       urls: job.urls.map(url => ({
@@ -61,7 +62,7 @@ function loadJobsIntoMemory(incompleteJobs) {
 /**
  * Create a new job
  * @param {string} jobId - The job ID
- * @param {string} sitemapUrl - The sitemap URL
+ * @param {string} sitemapUrl - The sitemap URL or "Direct URLs" if direct URLs were provided
  * @param {Array} urls - Array of URLs to process
  * @param {boolean} highlightLinks - Whether to highlight external links
  * @returns {Object} - The created job
@@ -75,6 +76,7 @@ async function createJob(jobId, sitemapUrl, urls, highlightLinks = true) {
       totalUrls: urls.length,
       processedUrls: 0,
       isRunning: true,
+      status: 'running',
       startTime: new Date(),
       highlightLinks,
       urls: {
@@ -96,6 +98,7 @@ async function createJob(jobId, sitemapUrl, urls, highlightLinks = true) {
     totalUrls: urls.length,
     processedUrls: 0,
     isRunning: true,
+    status: 'running',
     highlightLinks,
     startTime: job.startTime.toISOString(),
     urls: job.urls.map(url => ({
@@ -186,6 +189,7 @@ async function completeJob(jobId) {
     where: { jobId },
     data: {
       isRunning: false,
+      status: 'completed',
       completedTime: new Date()
     }
   });
@@ -194,6 +198,31 @@ async function completeJob(jobId) {
   const job = jobs.find(j => j.jobId === jobId);
   if (job) {
     job.isRunning = false;
+    job.status = 'completed';
+    job.completedTime = new Date().toISOString();
+  }
+}
+
+/**
+ * Cancel a running job
+ * @param {string} jobId - The job ID
+ */
+async function cancelJob(jobId) {
+  // Mark job as canceled in database
+  await prisma.job.update({
+    where: { jobId },
+    data: {
+      isRunning: false,
+      status: 'cancelled',
+      completedTime: new Date()
+    }
+  });
+  
+  // Mark job as canceled in memory
+  const job = jobs.find(j => j.jobId === jobId);
+  if (job) {
+    job.isRunning = false;
+    job.status = 'cancelled';
     job.completedTime = new Date().toISOString();
   }
 }
@@ -228,5 +257,6 @@ export {
   getAllJobs,
   updateUrlStatus,
   completeJob,
+  cancelJob,
   getPendingUrls
 };

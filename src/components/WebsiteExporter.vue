@@ -3,6 +3,8 @@ import { ref, reactive } from 'vue';
 import axios from 'axios';
 
 const sitemapUrl = ref('');
+const directUrls = ref('');
+const inputMode = ref('sitemap'); // 'sitemap' or 'urls'
 const highlightLinks = ref(true); // Default to true for highlighting external links
 const isLoading = ref(false);
 const error = ref('');
@@ -12,12 +14,18 @@ const crawlStatus = reactive({
   jobId: null,
   totalUrls: 0,
   processedUrls: 0,
-  files: []
+  files: [],
+  status: ''
 });
 
 const startCrawling = async () => {
-  if (!sitemapUrl.value) {
+  if (inputMode.value === 'sitemap' && !sitemapUrl.value) {
     error.value = 'Please enter a sitemap URL';
+    return;
+  }
+  
+  if (inputMode.value === 'urls' && !directUrls.value) {
+    error.value = 'Please enter at least one URL';
     return;
   }
   
@@ -27,10 +35,30 @@ const startCrawling = async () => {
     crawlStatus.isRunning = true;
     crawlStatus.files = [];
     
-    const response = await axios.post('/api/crawl', {
-      sitemapUrl: sitemapUrl.value,
+    let payload = {
       highlightLinks: highlightLinks.value
-    });
+    };
+    
+    if (inputMode.value === 'sitemap') {
+      payload.sitemapUrl = sitemapUrl.value;
+    } else {
+      // Split the text by new lines and filter out empty lines
+      const urlList = directUrls.value
+        .split('\n')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+      
+      if (urlList.length === 0) {
+        error.value = 'Please enter at least one valid URL';
+        isLoading.value = false;
+        crawlStatus.isRunning = false;
+        return;
+      }
+      
+      payload.urls = urlList;
+    }
+    
+    const response = await axios.post('/api/crawl', payload);
     
     crawlStatus.jobId = response.data.jobId;
     crawlStatus.totalUrls = response.data.totalUrls;
@@ -56,9 +84,11 @@ const pollStatus = async () => {
       crawlStatus.isRunning = false;
       crawlStatus.processedUrls = response.data.filesGenerated;
       crawlStatus.files = response.data.files;
+      crawlStatus.status = 'completed';
     } else {
       crawlStatus.processedUrls = response.data.filesGenerated || 0;
       crawlStatus.files = response.data.files || [];
+      crawlStatus.status = response.data.status;
       // Continue polling
       setTimeout(pollStatus, 2000);
     }
@@ -69,10 +99,36 @@ const pollStatus = async () => {
   }
 };
 
+const cancelJob = async () => {
+  if (!crawlStatus.jobId || !crawlStatus.isRunning) return;
+  
+  try {
+    isLoading.value = true;
+    error.value = '';
+    
+    const response = await axios.post(`/api/cancel/${crawlStatus.jobId}`);
+    
+    if (response.data.status === 'canceled') {
+      crawlStatus.isRunning = false;
+      error.value = 'Job canceled successfully';
+    }
+  } catch (err) {
+    error.value = err.response?.data?.error || 'Failed to cancel job';
+  } finally {
+    isLoading.value = false;
+  }
+};
+
 const downloadZip = async () => {
   try {
     isLoading.value = true;
     error.value = '';
+    
+    // Prevent download if job was cancelled
+    if (crawlStatus.status === 'cancelled') {
+      error.value = 'Download not available for cancelled jobs';
+      return;
+    }
     
     // Use window.open for direct download with jobId
     // We keep using window.open for direct file downloads as this is the appropriate approach
@@ -98,7 +154,24 @@ const toggleAdvanced = () => {
   <div class="website-exporter">
     
     <div class="form-container">
-      <div class="form-group">
+      <div class="input-mode-tabs">
+        <button 
+          @click="inputMode = 'sitemap'" 
+          :class="{'active': inputMode === 'sitemap'}"
+          :disabled="isLoading || crawlStatus.isRunning"
+        >
+          Sitemap URL
+        </button>
+        <button 
+          @click="inputMode = 'urls'" 
+          :class="{'active': inputMode === 'urls'}"
+          :disabled="isLoading || crawlStatus.isRunning"
+        >
+          Direct URLs
+        </button>
+      </div>
+      
+      <div v-if="inputMode === 'sitemap'" class="form-group">
         <label for="sitemap-url">Sitemap URL:</label>
         <input 
           id="sitemap-url" 
@@ -108,13 +181,28 @@ const toggleAdvanced = () => {
           :disabled="isLoading || crawlStatus.isRunning"
         />
       </div>
+      
+      <div v-if="inputMode === 'urls'" class="form-group">
+        <label for="direct-urls">URLs to Crawl (one per line):</label>
+        <textarea 
+          id="direct-urls" 
+          v-model="directUrls" 
+          placeholder="https://example.com/page1
+https://example.com/page2
+https://example.com/page3"
+          :disabled="isLoading || crawlStatus.isRunning"
+          rows="5"
+        ></textarea>
+      </div>
+      
       <button 
         @click="startCrawling" 
-        :disabled="isLoading || crawlStatus.isRunning || !sitemapUrl"
+        :disabled="isLoading || crawlStatus.isRunning || (inputMode === 'sitemap' && !sitemapUrl) || (inputMode === 'urls' && !directUrls)"
         class="primary-button"
       >
         {{ isLoading ? 'Starting...' : 'Start Crawling' }}
       </button>
+      
       <div class="accordion">
         <div class="accordion-header">
           <span @click="toggleAdvanced" class="accordion-header-text" >
@@ -148,11 +236,20 @@ const toggleAdvanced = () => {
       
       <div class="status-info">
         <p>
-          <strong>Status:</strong> {{ crawlStatus.isRunning ? 'Running' : 'Completed' }}
+          <strong>Status:</strong> {{ crawlStatus.status.charAt(0).toUpperCase() + crawlStatus.status.slice(1) }}
         </p>
         <p>
           <strong>Progress:</strong> {{ crawlStatus.processedUrls }} / {{ crawlStatus.totalUrls }} pages
         </p>
+        <div v-if="crawlStatus.isRunning" class="action-buttons">
+          <button 
+            @click="cancelJob" 
+            :disabled="isLoading"
+            class="cancel-button"
+          >
+            Cancel Job
+          </button>
+        </div>
       </div>
       
       <div v-if="crawlStatus.files.length > 0" class="files-container">
@@ -165,7 +262,8 @@ const toggleAdvanced = () => {
         
         <button 
           @click="downloadZip" 
-          :disabled="isLoading"
+          :disabled="isLoading || crawlStatus.status === 'cancelled'"
+          :title="crawlStatus.status === 'cancelled' ? 'Download not available for cancelled jobs' : 'Download all files as ZIP'"
           class="download-button"
         >
           Download All as ZIP
@@ -182,6 +280,33 @@ const toggleAdvanced = () => {
   padding: 2rem;
 }
 
+.input-mode-tabs {
+  display: flex;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.input-mode-tabs button {
+  flex: 1;
+  padding: 0.75rem;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  color: var(--muted);
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.input-mode-tabs button.active {
+  color: var(--foreground);
+  border: 2px solid var(--muted);
+}
+
+.input-mode-tabs button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
 h1 {
   font-size: 2rem;
@@ -280,8 +405,6 @@ label {
   border-radius: 50%;
 }
 
-
-
 .toggle-slider.checked:before {
   transform: translateX(26px);
 }
@@ -318,7 +441,7 @@ input:checked + .toggle-slider:before {
   padding: 1rem 0;
   border-top: 1px solid var(--border);
 }
-input {
+input, textarea {
   width: auto;
   padding: 0.75rem;
   border: 1px solid var(--border);
@@ -327,9 +450,15 @@ input {
   background-color: var(--card);
   color: var(--foreground);
   transition: border-color 0.2s ease;
+  font-family: inherit;
 }
 
-input:focus {
+textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+input:focus, textarea:focus {
   outline: none;
   border-color: var(--ring);
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.1);
@@ -394,7 +523,7 @@ input:focus {
   color: var(--muted);
 }
 
-.download-button {
+.download-button, .cancel-button {
   padding: 0.75rem 1.5rem;
   background-color: var(--card);
   color: var(--foreground);
@@ -406,6 +535,13 @@ input:focus {
   transition: all 0.2s ease;
   display: block;
   width: 100%;
+}
+
+.cancel-button {
+  background-color: #dc3545;
+  margin-left: 1rem;
+  display: inline-block;
+  width: auto;
 }
 
 .download-button:hover {

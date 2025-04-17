@@ -341,13 +341,33 @@ async function crawlWebsite(urls, jobId, isResuming = false, highlightLinks = tr
     
     // Process each URL
     for (let i = 0; i < urlsToProcess.length; i++) {
+      // Check if job is still running before processing each URL
+      const dbJob = await prisma.job.findUnique({
+        where: { jobId },
+        select: { isRunning: true }
+      });
+      
+      // If job has been canceled, stop processing
+      if (!dbJob || !dbJob.isRunning) {
+        console.log(`Job ${jobId} has been canceled, stopping crawl`);
+        break;
+      }
+      
       await processUrl(browser, urlsToProcess[i], jobId, i, highlightLinks);
     }
   } finally {
     await browser.close();
     
-    // Mark job as completed
-    await completeJob(jobId);
+    // Check job status before marking as completed
+    const dbJob = await prisma.job.findUnique({
+      where: { jobId },
+      select: { isRunning: true }
+    });
+    
+    // Only mark as completed if it wasn't canceled
+    if (dbJob && dbJob.isRunning) {
+      await completeJob(jobId);
+    }
   }
 }
 
