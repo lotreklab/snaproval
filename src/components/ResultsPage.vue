@@ -196,7 +196,7 @@ h1 {
 .error-message {
   color: #f44336;
   padding: 1rem;
-  background-color: #ffebee;
+  background-color: var(--card);
   border-radius: 4px;
   margin-bottom: 1rem;
 }
@@ -204,7 +204,7 @@ h1 {
 .loading-message, .no-jobs-message {
   text-align: center;
   padding: 2rem;
-  background-color: #f5f5f5;
+  background-color: var(--card);
   border-radius: 4px;
   color: #666;
 }
