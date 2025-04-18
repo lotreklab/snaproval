@@ -3,7 +3,7 @@ import {
   getJob, 
   getJobInfo, 
 } from '../../models/jobManager.js';
-import { createJobZip } from '../../services/crawlerQueue.js';
+import { createJobZip } from '../../services/zipCreator.js';
 
 const router = express.Router();
 

@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { outputDir } from '../../utils/fileSystem.js';
 import prisma from '../../db.js';
-import { createJobZip } from '../../services/crawlerQueue.js';
+import { createJobZip } from '../../services/zipCreator.js';
 
 const router = express.Router();
 
