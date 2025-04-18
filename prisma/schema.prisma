@@ -22,6 +22,8 @@ model Job {
   highlightLinks Boolean  @default(true)
   startTime     DateTime
   completedTime DateTime?
+  zipPath       String?
+  zipSize       Int?
   urls          Url[]
 
   @@map("jobs")

@@ -1,8 +1,8 @@
-import puppeteer from 'puppeteer';
 import path from 'path';
 import prisma from '../db.js';
-import { updateUrlStatus, completeJob } from '../models/jobManager.js';
+import { updateUrlStatus } from '../models/jobManager.js';
 import { outputDir } from '../utils/fileSystem.js';
+import { crawlerQueue } from './crawlerQueue.js';
 
 /**
  * Handle cookie consent banners on a page
@@ -313,13 +313,6 @@ async function processUrl(browser, url, jobId, index, highlightLinks = true) {
  * @param {boolean} highlightLinks - Whether to highlight external links
  */
 async function crawlWebsite(urls, jobId, isResuming = false, highlightLinks = true) {
-  const browser = await puppeteer.launch({args: ['--no-sandbox']});
-
-  // Handle cookie banners before launching the browser
-  const page = await browser.newPage();
-  await page.goto(urls[0], { waitUntil: 'networkidle2', timeout: 60000 });
-  await handleCookieBanners(page);
-  
   try {
     // If resuming, only process URLs that are still in 'to_do' status
     let urlsToProcess = urls;
@@ -339,35 +332,18 @@ async function crawlWebsite(urls, jobId, isResuming = false, highlightLinks = tr
       }
     }
     
-    // Process each URL
-    for (let i = 0; i < urlsToProcess.length; i++) {
-      // Check if job is still running before processing each URL
-      const dbJob = await prisma.job.findUnique({
-        where: { jobId },
-        select: { isRunning: true }
-      });
-      
-      // If job has been canceled, stop processing
-      if (!dbJob || !dbJob.isRunning) {
-        console.log(`Job ${jobId} has been canceled, stopping crawl`);
-        break;
-      }
-      
-      await processUrl(browser, urlsToProcess[i], jobId, i, highlightLinks);
-    }
-  } finally {
-    await browser.close();
+    // Add URLs to the shared queue for processing
+    crawlerQueue.addUrls(urlsToProcess, jobId, highlightLinks, processUrl);
     
-    // Check job status before marking as completed
-    const dbJob = await prisma.job.findUnique({
+    console.log(`Job ${jobId} added to parallel crawling queue with ${urlsToProcess.length} URLs`);
+  } catch (error) {
+    console.error(`Error setting up crawl job ${jobId}:`, error);
+    
+    // Mark job as error if it fails to start
+    await prisma.job.update({
       where: { jobId },
-      select: { isRunning: true }
+      data: { isRunning: false, status: 'error' }
     });
-    
-    // Only mark as completed if it wasn't canceled
-    if (dbJob && dbJob.isRunning) {
-      await completeJob(jobId);
-    }
   }
 }
 

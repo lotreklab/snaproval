@@ -247,6 +247,53 @@ async function getPendingUrls(jobId) {
   return [];
 }
 
+/**
+ * Get job information
+ * @param {string} jobId - Job ID
+ * @returns {Object} - Job information
+ */
+async function getJobInfo(jobId) {
+  const job = await prisma.job.findUnique({
+    where: { jobId },
+    include: { urls: true }
+  });
+  
+  if (!job) {
+    throw new Error(`Job ${jobId} not found`);
+  }
+  
+  // Calculate job progress
+  const progress = job.totalUrls > 0 ? (job.processedUrls / job.totalUrls * 100).toFixed(2) : 0;
+  
+  // Create job info object with download link if available
+  const jobInfo = {
+    jobId: job.jobId,
+    sitemapUrl: job.sitemapUrl,
+    totalUrls: job.totalUrls,
+    processedUrls: job.processedUrls,
+    progress: parseFloat(progress),
+    isRunning: job.isRunning,
+    status: job.status,
+    highlightLinks: job.highlightLinks,
+    startTime: job.startTime,
+    completedTime: job.completedTime,
+    urls: job.urls.map(url => ({
+      url: url.url,
+      status: url.status,
+      imagePath: url.imagePath,
+      processedAt: url.processedAt
+    }))
+  };
+  
+  // Add download URL if zip file exists
+  if (job.zipPath) {
+    jobInfo.downloadUrl = job.zipPath;
+    jobInfo.zipSize = job.zipSize;
+  }
+  
+  return jobInfo;
+}
+
 // Export functions and jobs array
 export {
   jobs,
@@ -258,5 +305,6 @@ export {
   updateUrlStatus,
   completeJob,
   cancelJob,
-  getPendingUrls
+  getPendingUrls,
+  getJobInfo
 };
