@@ -145,6 +145,30 @@ const downloadZip = async () => {
   }
 };
 
+const downloadPdf = async () => {
+  try {
+    isLoading.value = true;
+    error.value = '';
+    
+    // Prevent download if job was cancelled
+    if (crawlStatus.status === 'cancelled') {
+      error.value = 'Download not available for cancelled jobs';
+      return;
+    }
+    
+    // Use window.open for direct download with jobId
+    if (crawlStatus.jobId) {
+      window.open(`/api/download-pdf/${crawlStatus.jobId}`, '_blank');
+    } else {
+      error.value = 'No job ID available for download';
+    }
+  } catch (err) {
+    error.value = 'Failed to download PDF';
+  } finally {
+    isLoading.value = false;
+  }
+};
+
 const toggleAdvanced = () => {
   showAdvanced.value = !showAdvanced.value;
 };
@@ -260,14 +284,25 @@ https://example.com/page3"
           </li>
         </ul>
         
-        <button 
-          @click="downloadZip" 
-          :disabled="isLoading || crawlStatus.status === 'cancelled'"
-          :title="crawlStatus.status === 'cancelled' ? 'Download not available for cancelled jobs' : 'Download all files as ZIP'"
-          class="download-button"
-        >
-          Download All as ZIP
-        </button>
+        <div class="download-buttons">
+          <button 
+            @click="downloadZip" 
+            :disabled="isLoading || crawlStatus.status === 'cancelled'"
+            :title="crawlStatus.status === 'cancelled' ? 'Download not available for cancelled jobs' : 'Download all files as ZIP'"
+            class="download-button"
+          >
+            Download All as ZIP
+          </button>
+          
+          <button 
+            @click="downloadPdf" 
+            :disabled="isLoading || crawlStatus.status === 'cancelled'"
+            :title="crawlStatus.status === 'cancelled' ? 'Download not available for cancelled jobs' : 'Download all files as PDF'"
+            class="download-button pdf-button"
+          >
+            Download All as PDF
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -523,7 +558,12 @@ input:focus, textarea:focus {
   color: var(--muted);
 }
 
-.download-button, .cancel-button {
+.download-buttons {
+  display: flex;
+  gap: 1rem;
+}
+
+.download-button {
   padding: 0.75rem 1.5rem;
   background-color: var(--card);
   color: var(--foreground);
@@ -533,15 +573,7 @@ input:focus, textarea:focus {
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
-  display: block;
-  width: 100%;
-}
-
-.cancel-button {
-  background-color: #dc3545;
-  margin-left: 1rem;
-  display: inline-block;
-  width: auto;
+  flex: 1;
 }
 
 .download-button:hover {
@@ -552,5 +584,16 @@ input:focus, textarea:focus {
 .download-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.pdf-button {
+  background-color: var(--card);
+}
+
+.cancel-button {
+  background-color: #dc3545;
+  margin-left: 1rem;
+  display: inline-block;
+  width: auto;
 }
 </style>

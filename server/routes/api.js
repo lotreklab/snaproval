@@ -4,6 +4,7 @@ import axios from 'axios';
 import { createJobDirectories, createScreenshotsZip, getJobFiles } from '../utils/fileSystem.js';
 import { createJob, getJob, getAllJobs, jobs, cancelJob } from '../models/jobManager.js';
 import { crawlWebsite } from '../services/crawler.js';
+import { createJobPdf } from '../services/pdfCreator.js';
 
 const router = express.Router();
 
@@ -162,6 +163,41 @@ router.get('/download/:jobId', async (req, res) => {
   } catch (error) {
     console.error('Download error:', error);
     res.status(500).json({ error: 'Error creating zip file' });
+  }
+});
+
+/**
+ * Download all screenshots as PDF for a specific job
+ */
+router.get('/download-pdf/:jobId', async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    
+    // Check if job exists and get its status
+    const job = await getJob(jobId);
+    
+    if (!job) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+    
+    // Prevent downloads for cancelled jobs
+    if (job.status === 'cancelled') {
+      return res.status(403).json({ error: 'Downloads are not available for cancelled jobs' });
+    }
+    
+    // Create PDF file by calling createJobPdf function
+    try {
+      const pdfPath = await createJobPdf(jobId);
+      const pdfFileName = `screenshots-${jobId}.pdf`;
+      
+      res.download(pdfPath, pdfFileName);
+    } catch (error) {
+      console.error('PDF creation error:', error);
+      res.status(500).json({ error: 'Error creating PDF file' });
+    }
+  } catch (error) {
+    console.error('Download PDF error:', error);
+    res.status(500).json({ error: 'Error creating PDF file' });
   }
 });
 

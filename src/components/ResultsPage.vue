@@ -61,6 +61,20 @@ const downloadJob = (jobId) => {
   window.open(`/api/download/${jobId}`, '_blank');
 };
 
+// Download job results as PDF
+const downloadPdf = (jobId) => {
+  // Find the job in our local data
+  const job = jobs.value.find(j => j.jobId === jobId);
+  
+  // Prevent download if job was cancelled
+  if (job && job.status === 'cancelled') {
+    error.value = 'Download not available for cancelled jobs';
+    return;
+  }
+  
+  window.open(`/api/download-pdf/${jobId}`, '_blank');
+};
+
 // Cancel a running job
 const cancelJob = async (jobId) => {
   if (!jobId) return;
@@ -164,12 +178,20 @@ onMounted(() => {
         </div>
         
         <div class="job-actions">
-          <button 
-            @click.stop="downloadJob(job.jobId)" 
-            class="download-button"
-            :disabled="job.status === 'cancelled'"
-            :title="job.status === 'cancelled' ? 'Download not available for cancelled jobs' : 'Download job results'"
-          >Download</button>
+          <div class="download-buttons">
+            <button 
+              @click.stop="downloadJob(job.jobId)" 
+              class="download-button"
+              :disabled="job.status === 'cancelled'"
+              :title="job.status === 'cancelled' ? 'Download not available for cancelled jobs' : 'Download job results as ZIP'"
+            >ZIP</button>
+            <button 
+              @click.stop="downloadPdf(job.jobId)" 
+              class="download-button pdf-button"
+              :disabled="job.status === 'cancelled'"
+              :title="job.status === 'cancelled' ? 'Download not available for cancelled jobs' : 'Download job results as PDF'"
+            >PDF</button>
+          </div>
           <button @click.stop="viewJobDetails(job.jobId)" class="view-details-button">View Details</button>
           <button 
             v-if="job.isRunning" 
@@ -206,12 +228,20 @@ onMounted(() => {
           </div>
           
           <div v-if="!selectedJob.isRunning && selectedJob.status !== 'cancelled'" class="modal-actions">
-            <button 
-              @click="downloadJob(selectedJob.jobId)" 
-              class="download-button"
-            >
-              Download Results
-            </button>
+            <div class="download-buttons">
+              <button 
+                @click="downloadJob(selectedJob.jobId)" 
+                class="download-button"
+              >
+                Download as ZIP
+              </button>
+              <button 
+                @click="downloadPdf(selectedJob.jobId)" 
+                class="download-button pdf-button"
+              >
+                Download as PDF
+              </button>
+            </div>
           </div>
           
           <h4>URLs Status</h4>
@@ -372,8 +402,15 @@ h1 {
 
 .job-actions {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  margin-top: 1rem;
   gap: 0.5rem;
+}
+
+.download-buttons {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
 }
 
 .download-button, .view-details-button {
@@ -381,19 +418,22 @@ h1 {
   color: var(--foreground);
   border: 1px solid var(--border);
   padding: 0.5rem 1rem;
+  font-size: 0.9rem;
   border-radius: var(--radius);
   cursor: pointer;
-  font-size: 0.9rem;
   transition: all 0.2s ease;
-  flex: 1;
+}
+
+.view-details-button {
+  flex-grow: 1;
 }
 
 .download-button:hover, .view-details-button:hover {
   background-color: var(--card-hover);
-  border-color: var(--ring);
+  border-color: var(--accent);
 }
 
-.download-button:disabled, .view-details-button:disabled {
+.download-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -586,5 +626,9 @@ h1 {
 
 .job-status-text.cancelled {
   color: #F44336;
+}
+
+.pdf-button {
+  background-color: var(--card);
 }
 </style>

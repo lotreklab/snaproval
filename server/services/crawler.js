@@ -242,12 +242,11 @@ async function processUrl(browser, url, jobId, index, highlightLinks = true) {
   await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
 
   try {
-    // Navigate to the page
+    // Navigate to the page - cookie banners are now handled at the job level
     await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
 
     // Wait for loader animations to finish
     await page.evaluate(() => new Promise(resolve => setTimeout(resolve, 3000)));
-
 
     // Scroll down the page until bottom to trigger scrolling animations
     await page.evaluate(async () => {
@@ -291,9 +290,8 @@ async function processUrl(browser, url, jobId, index, highlightLinks = true) {
       type: 'png'
     });
 
-     // Update URL status in database and memory
-     await updateUrlStatus(jobId, url, 'completed', webAccessiblePath);
-
+    // Update URL status in database and memory
+    await updateUrlStatus(jobId, url, 'completed', webAccessiblePath);
     
     console.log(`Generated screenshot for ${url}`);
   } catch (error) {
