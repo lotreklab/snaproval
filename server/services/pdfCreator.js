@@ -138,9 +138,12 @@ async function createJobPdf(jobId) {
             // How many pixels of the original image to show per page
             const pixelsPerPage = Math.floor(pageHeight / scale);
             
-            // How many pages we'll need
-            const pagesNeeded = Math.ceil(metadata.height / pixelsPerPage);
-            console.log(`Will split into ${pagesNeeded} pages, ${pixelsPerPage} source pixels per page`);
+            // Define overlap to prevent text from being split between pages (50px)
+            const overlapPixels = 100;
+            
+            // How many pages we'll need, accounting for overlap
+            const pagesNeeded = Math.ceil((metadata.height - overlapPixels) / (pixelsPerPage - overlapPixels));
+            console.log(`Will split into ${pagesNeeded} pages, ${pixelsPerPage} source pixels per page with ${overlapPixels}px overlap`);
             
             // Create a temp directory for the image slices if it doesn't exist
             const tempSliceDir = path.join(jobDir, 'temp-slices');
@@ -164,8 +167,9 @@ async function createJobPdf(jobId) {
                 doc.moveDown(0.5);
               }
               
-              // Calculate the part of the image to extract
-              const top = slice * pixelsPerPage;
+              // Calculate the part of the image to extract, with overlap
+              // For all slices except the first, start 'overlapPixels' pixels earlier
+              const top = slice === 0 ? 0 : slice * (pixelsPerPage - overlapPixels);
               const height = Math.min(pixelsPerPage, metadata.height - top);
               
               // Create a filename for this slice
@@ -236,4 +240,4 @@ async function createJobPdf(jobId) {
   });
 }
 
-export { createJobPdf }; 
+export { createJobPdf };
