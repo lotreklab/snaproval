@@ -203,22 +203,22 @@ async function createJobPdf(jobId) {
         }
       }
 
-      let pages = doc.bufferedPageRange();
-      for (let i = 0; i < pages.count; i++) {
-        doc.switchToPage(i);
+      // let pages = doc.bufferedPageRange();
+      // for (let i = 0; i < pages.count; i++) {
+      //   doc.switchToPage(i);
 
-        //Footer: Add page number
-        let oldBottomMargin = doc.page.margins.bottom;
-        doc.page.margins.bottom = 0 //Dumb: Have to remove bottom margin in order to write into it
-        doc
-          .text(
-            `${i + 1} / ${pages.count}`,
-            0,
-            doc.page.height - (oldBottomMargin/2), // Centered vertically in bottom margin
-            { align: 'center' }
-          );
-        doc.page.margins.bottom = oldBottomMargin; // ReProtect bottom margin
-      }
+      //   //Footer: Add page number
+      //   let oldBottomMargin = doc.page.margins.bottom;
+      //   doc.page.margins.bottom = 0 //Dumb: Have to remove bottom margin in order to write into it
+      //   doc
+      //     .text(
+      //       `${i + 1} / ${pages.count}`,
+      //       0,
+      //       doc.page.height - (oldBottomMargin/2), // Centered vertically in bottom margin
+      //       { align: 'center' }
+      //     );
+      //   doc.page.margins.bottom = oldBottomMargin; // ReProtect bottom margin
+      // }
       
       // Finalize the PDF
       doc.end();
