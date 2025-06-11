@@ -109,7 +109,7 @@ async function createJobPdf(jobId) {
         // Add URL as header
         doc.fontSize(12);
         doc.font('Helvetica-Bold');
-        doc.text(url, {
+        doc.text(url.replace(".lotrek.net", ".it"), {
           width: doc.page.width - 100,
           align: 'center'
         });
