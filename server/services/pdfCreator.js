@@ -161,7 +161,7 @@ async function createJobPdf(jobId) {
                 // Add URL as header on continuation pages
                 doc.fontSize(12);
                 doc.font('Helvetica-Bold');
-                doc.text(`${url} (continued ${slice+1}/${pagesNeeded})`, {
+                doc.text(`${url.replace(".lotrek.net", ".it")} (continued ${slice+1}/${pagesNeeded})`, {
                   width: doc.page.width - 100,
                   align: 'center'
                 });
