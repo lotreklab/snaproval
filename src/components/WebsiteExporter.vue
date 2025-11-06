@@ -188,7 +188,7 @@ https://example.com/page2
 https://example.com/page3" :disabled="isLoading || crawlStatus.isRunning" rows="5"></textarea>
       </div>
       <div v-if="!customWidth">
-        <label>Selected:</label>
+        <label>Screenshot width:</label>
 
         <select v-model="selectedWidth">
           <option disabled value="">Default (1470)</option>
@@ -583,22 +583,7 @@ textarea:focus {
   width: 50%;
 }
 
-.d-flex {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
 .ms-1 {
   margin-left: 0.5rem;
-}
-
-.mt-1 {
-  margin-top: 1rem;
-}
-
-.mb-1 {
-  margin-bottom: 0.5rem;
 }
 </style>
