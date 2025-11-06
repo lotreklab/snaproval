@@ -232,12 +232,11 @@ async function addLinkHighlighting(page, domain) {
  * @param {number} index - URL index
  * @param {boolean} highlightLinks - Whether to highlight external links
  */
-async function processUrl(browser, url, jobId, index, highlightLinks = true) {
+async function processUrl(browser, url, jobId, index, highlightLinks = true,  width="1470", height=1080) {
   const page = await browser.newPage();
   
   // Set viewport (capture screenshots at 1470px wide)
-  await page.setViewport({ width: 1470, height: 1080 });
-  
+  await page.setViewport({ width: parseInt(width), height: height});
   // Set user agent to avoid bot detection
   await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
 
@@ -276,7 +275,7 @@ async function processUrl(browser, url, jobId, index, highlightLinks = true) {
     }
     
     // Generate a safe filename from URL
-    const filename = `page-${index+1}-${url.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 100)}.png`;
+    const filename = `page-${index+1}-${url.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 100)}__width_${width}.png`;
     const jobScreenshotDir = path.join(outputDir, jobId, 'screenshots');
     const outputPath = path.join(jobScreenshotDir, filename);
     
@@ -310,16 +309,15 @@ async function processUrl(browser, url, jobId, index, highlightLinks = true) {
  * @param {boolean} isResuming - Whether this is resuming an existing job
  * @param {boolean} highlightLinks - Whether to highlight external links
  */
-async function crawlWebsite(urls, jobId, isResuming = false, highlightLinks = true) {
+async function crawlWebsite(urls, jobId, isResuming = false, highlightLinks = true, width ) {
   try {
     // If resuming, only process URLs that are still in 'to_do' status
     let urlsToProcess = urls;
-    
     if (isResuming) {
       // Get the current status of URLs from the database
       const dbJob = await prisma.job.findUnique({
         where: { jobId },
-        include: { urls: true }
+        include: { urls: true, width: true }
       });
       
       if (dbJob) {
@@ -331,7 +329,7 @@ async function crawlWebsite(urls, jobId, isResuming = false, highlightLinks = tr
     }
     
     // Add URLs to the shared queue for processing
-    crawlerQueue.addUrls(urlsToProcess, jobId, highlightLinks, processUrl);
+    crawlerQueue.addUrls(urlsToProcess, jobId, highlightLinks, processUrl,  width);
     
     console.log(`Job ${jobId} added to parallel crawling queue with ${urlsToProcess.length} URLs`);
   } catch (error) {

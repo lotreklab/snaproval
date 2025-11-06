@@ -4,6 +4,8 @@ import axios from 'axios';
 
 const sitemapUrl = ref('');
 const directUrls = ref('');
+const customWidth = ref('');
+const selectedWidth = ref('');
 const inputMode = ref('sitemap'); // 'sitemap' or 'urls'
 const highlightLinks = ref(true); // Default to true for highlighting external links
 const isLoading = ref(false);
@@ -23,22 +25,24 @@ const startCrawling = async () => {
     error.value = 'Please enter a sitemap URL';
     return;
   }
-  
   if (inputMode.value === 'urls' && !directUrls.value) {
     error.value = 'Please enter at least one URL';
     return;
   }
-  
   try {
     isLoading.value = true;
     error.value = '';
     crawlStatus.isRunning = true;
     crawlStatus.files = [];
-    
     let payload = {
       highlightLinks: highlightLinks.value
     };
-    
+    if (selectedWidth.value) {
+      payload.width = selectedWidth.value;
+    }
+    if (customWidth.value) {
+      payload.width = customWidth.value;
+    }
     if (inputMode.value === 'sitemap') {
       payload.sitemapUrl = sitemapUrl.value;
     } else {
@@ -47,25 +51,19 @@ const startCrawling = async () => {
         .split('\n')
         .map(url => url.trim())
         .filter(url => url.length > 0);
-      
       if (urlList.length === 0) {
         error.value = 'Please enter at least one valid URL';
         isLoading.value = false;
         crawlStatus.isRunning = false;
         return;
       }
-      
       payload.urls = urlList;
     }
-    
     const response = await axios.post('/api/crawl', payload);
-    
     crawlStatus.jobId = response.data.jobId;
     crawlStatus.totalUrls = response.data.totalUrls;
-    
     // Start polling for status
     pollStatus();
-    
   } catch (err) {
     error.value = err.response?.data?.error || 'Failed to start crawling';
     crawlStatus.isRunning = false;
@@ -76,10 +74,8 @@ const startCrawling = async () => {
 
 const pollStatus = async () => {
   if (!crawlStatus.jobId) return;
-  
   try {
     const response = await axios.get(`/api/status/${crawlStatus.jobId}`);
-    
     if (response.data.status === 'completed') {
       crawlStatus.isRunning = false;
       crawlStatus.processedUrls = response.data.filesGenerated;
@@ -101,13 +97,10 @@ const pollStatus = async () => {
 
 const cancelJob = async () => {
   if (!crawlStatus.jobId || !crawlStatus.isRunning) return;
-  
   try {
     isLoading.value = true;
     error.value = '';
-    
     const response = await axios.post(`/api/cancel/${crawlStatus.jobId}`);
-    
     if (response.data.status === 'canceled') {
       crawlStatus.isRunning = false;
       error.value = 'Job canceled successfully';
@@ -123,13 +116,11 @@ const downloadZip = async () => {
   try {
     isLoading.value = true;
     error.value = '';
-    
     // Prevent download if job was cancelled
     if (crawlStatus.status === 'cancelled') {
       error.value = 'Download not available for cancelled jobs';
       return;
     }
-    
     // Use window.open for direct download with jobId
     // We keep using window.open for direct file downloads as this is the appropriate approach
     // even when using Vue Router (router is for page navigation, not file downloads)
@@ -149,13 +140,11 @@ const downloadPdf = async () => {
   try {
     isLoading.value = true;
     error.value = '';
-    
     // Prevent download if job was cancelled
     if (crawlStatus.status === 'cancelled') {
       error.value = 'Download not available for cancelled jobs';
       return;
     }
-    
     // Use window.open for direct download with jobId
     if (crawlStatus.jobId) {
       window.open(`/api/download-pdf/${crawlStatus.jobId}`, '_blank');
@@ -176,88 +165,81 @@ const toggleAdvanced = () => {
 
 <template>
   <div class="website-exporter">
-    
     <div class="form-container">
       <div class="input-mode-tabs">
-        <button 
-          @click="inputMode = 'sitemap'" 
-          :class="{'active': inputMode === 'sitemap'}"
-          :disabled="isLoading || crawlStatus.isRunning"
-        >
+        <button @click="inputMode = 'sitemap'" :class="{ 'active': inputMode === 'sitemap' }"
+          :disabled="isLoading || crawlStatus.isRunning">
           Sitemap URL
         </button>
-        <button 
-          @click="inputMode = 'urls'" 
-          :class="{'active': inputMode === 'urls'}"
-          :disabled="isLoading || crawlStatus.isRunning"
-        >
+        <button @click="inputMode = 'urls'" :class="{ 'active': inputMode === 'urls' }"
+          :disabled="isLoading || crawlStatus.isRunning">
           Direct URLs
         </button>
       </div>
-      
       <div v-if="inputMode === 'sitemap'" class="form-group">
         <label for="sitemap-url">Sitemap URL:</label>
-        <input 
-          id="sitemap-url" 
-          v-model="sitemapUrl" 
-          type="url" 
-          placeholder="https://example.com/sitemap.xml"
-          :disabled="isLoading || crawlStatus.isRunning"
-        />
+        <input id="sitemap-url" v-model="sitemapUrl" type="url" placeholder="https://example.com/sitemap.xml"
+          :disabled="isLoading || crawlStatus.isRunning" />
       </div>
-      
       <div v-if="inputMode === 'urls'" class="form-group">
         <label for="direct-urls">URLs to Crawl (one per line):</label>
-        <textarea 
-          id="direct-urls" 
-          v-model="directUrls" 
-          placeholder="https://example.com/page1
+        <textarea id="direct-urls" v-model="directUrls" placeholder="https://example.com/page1
 https://example.com/page2
-https://example.com/page3"
-          :disabled="isLoading || crawlStatus.isRunning"
-          rows="5"
-        ></textarea>
+https://example.com/page3" :disabled="isLoading || crawlStatus.isRunning" rows="5"></textarea>
       </div>
-      
-      <button 
-        @click="startCrawling" 
+      <div v-if="!customWidth">
+        <label>Selected:</label>
+
+        <select v-model="selectedWidth">
+          <option disabled value="">Default (1470)</option>
+          <option>576</option>
+          <option>1280</option>
+          <option>1440</option>
+          <option>1920</option>
+        </select>
+
+      </div>
+
+      <button @click="startCrawling"
         :disabled="isLoading || crawlStatus.isRunning || (inputMode === 'sitemap' && !sitemapUrl) || (inputMode === 'urls' && !directUrls)"
-        class="primary-button"
-      >
+        class="primary-button">
         {{ isLoading ? 'Starting...' : 'Start Crawling' }}
       </button>
-      
+
       <div class="accordion">
         <div class="accordion-header">
-          <span @click="toggleAdvanced" class="accordion-header-text" >
+          <span @click="toggleAdvanced" class="accordion-header-text">
             <span>Advanced</span>
             <span class="accordion-icon">{{ showAdvanced ? '▼' : '▶' }}</span>
           </span>
         </div>
         <div class="accordion-content" v-show="showAdvanced">
           <div class="form-group toggle-container">
-            <label for="highlight-links">Highlight External Links:</label>
-            <div class="toggle-switch">
-              <input 
-                id="highlight-links" 
-                type="checkbox" 
-                v-model="highlightLinks" 
-                :disabled="isLoading || crawlStatus.isRunning"
-              />
-              <label for="highlight-links" class="toggle-slider"></label>
+            <div>
+              <label for="customWidth">Custom width:</label>
+              <input class="ms-1" id="customWidth" v-model="customWidth" type="text" placeholder="1470"
+                :disabled="isLoading || crawlStatus.isRunning" />
+            </div>
+            <div class=" toggle-container">
+              <label for="highlight-links">Highlight External Links:</label>
+              <div class="toggle-switch ms-1">
+                <input id="highlight-links" type="checkbox" v-model="highlightLinks"
+                  :disabled="isLoading || crawlStatus.isRunning" />
+                <label for="highlight-links" class="toggle-slider"></label>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </div>
-    
+
     <div v-if="error" class="error-message">
       {{ error }}
     </div>
-    
+
     <div v-if="crawlStatus.jobId" class="status-container">
       <h2>Crawling Status</h2>
-      
+
       <div class="status-info">
         <p>
           <strong>Status:</strong> {{ crawlStatus.status.charAt(0).toUpperCase() + crawlStatus.status.slice(1) }}
@@ -266,16 +248,12 @@ https://example.com/page3"
           <strong>Progress:</strong> {{ crawlStatus.processedUrls }} / {{ crawlStatus.totalUrls }} pages
         </p>
         <div v-if="crawlStatus.isRunning" class="action-buttons">
-          <button 
-            @click="cancelJob" 
-            :disabled="isLoading"
-            class="cancel-button"
-          >
+          <button @click="cancelJob" :disabled="isLoading" class="cancel-button">
             Cancel Job
           </button>
         </div>
       </div>
-      
+
       <div v-if="crawlStatus.files.length > 0" class="files-container">
         <h3>Generated Files ({{ crawlStatus.files.length }}):</h3>
         <ul class="files-list">
@@ -283,23 +261,17 @@ https://example.com/page3"
             {{ file }}
           </li>
         </ul>
-        
+
         <div class="download-buttons">
-          <button 
-            @click="downloadZip" 
-            :disabled="isLoading || crawlStatus.status === 'cancelled'"
+          <button @click="downloadZip" :disabled="isLoading || crawlStatus.status === 'cancelled'"
             :title="crawlStatus.status === 'cancelled' ? 'Download not available for cancelled jobs' : 'Download all files as ZIP'"
-            class="download-button"
-          >
+            class="download-button">
             Download All as ZIP
           </button>
-          
-          <button 
-            @click="downloadPdf" 
-            :disabled="isLoading || crawlStatus.status === 'cancelled'"
+
+          <button @click="downloadPdf" :disabled="isLoading || crawlStatus.status === 'cancelled'"
             :title="crawlStatus.status === 'cancelled' ? 'Download not available for cancelled jobs' : 'Download all files as PDF'"
-            class="download-button pdf-button"
-          >
+            class="download-button pdf-button">
             Download All as PDF
           </button>
         </div>
@@ -384,7 +356,7 @@ h1 {
 .toggle-container {
   display: flex;
   align-items: center;
-  justify-content: end;
+  justify-content: space-between;
   flex-direction: row;
 }
 
@@ -435,7 +407,8 @@ label {
   width: 16px;
   left: 4px;
   bottom: 4px;
-  background-color: #ffffff; /* Fixed color for the toggle circle */
+  background-color: #ffffff;
+  /* Fixed color for the toggle circle */
   transition: .4s;
   border-radius: 50%;
 }
@@ -444,7 +417,7 @@ label {
   transform: translateX(26px);
 }
 
-input:checked + .toggle-slider:before {
+input:checked+.toggle-slider:before {
   transform: translateX(26px);
 }
 
@@ -462,9 +435,11 @@ input:checked + .toggle-slider:before {
   font-size: small;
   transition: background-color 0.2s ease;
 }
+
 .accordion-header-text:hover {
   cursor: pointer;
 }
+
 .accordion-icon {
   font-size: 0.8rem;
   transition: transform 0.2s ease;
@@ -476,7 +451,9 @@ input:checked + .toggle-slider:before {
   padding: 1rem 0;
   border-top: 1px solid var(--border);
 }
-input, textarea {
+
+input,
+textarea {
   width: auto;
   padding: 0.75rem;
   border: 1px solid var(--border);
@@ -493,7 +470,8 @@ textarea {
   min-height: 100px;
 }
 
-input:focus, textarea:focus {
+input:focus,
+textarea:focus {
   outline: none;
   border-color: var(--ring);
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.1);
@@ -595,5 +573,32 @@ input:focus, textarea:focus {
   margin-left: 1rem;
   display: inline-block;
   width: auto;
+}
+
+.w-75 {
+  width: 75%;
+}
+
+.w-50 {
+  width: 50%;
+}
+
+.d-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.ms-1 {
+  margin-left: 0.5rem;
+}
+
+.mt-1 {
+  margin-top: 1rem;
+}
+
+.mb-1 {
+  margin-bottom: 0.5rem;
 }
 </style>

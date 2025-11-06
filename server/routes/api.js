@@ -13,8 +13,7 @@ const router = express.Router();
  */
 router.post('/crawl', async (req, res) => {
   try {
-    const { sitemapUrl, urls, highlightLinks = true } = req.body;
-    
+    const { sitemapUrl, urls, highlightLinks = true, height="1080", width="1470" } = req.body;
     // Create a job-specific directory
     const jobId = Date.now().toString();
     const { jobDir, jobScreenshotDir, jobPdfDir } = createJobDirectories(jobId);
@@ -54,17 +53,17 @@ router.post('/crawl', async (req, res) => {
     }
     
     // Create job record in database and memory
-    await createJob(jobId, sitemapUrl || 'Direct URLs', urlsToProcess, highlightLinks);
+    await createJob(jobId, sitemapUrl || 'Direct URLs', urlsToProcess, highlightLinks,  width);
     
     // Start crawling process
     res.json({ 
       message: 'Crawling started', 
       totalUrls: urlsToProcess.length,
-      jobId
+      jobId,
+      width
     });
-    
     // Launch browser and start crawling
-    await crawlWebsite(urlsToProcess, jobId, false, highlightLinks);
+    await crawlWebsite(urlsToProcess, jobId, false, highlightLinks,  width);
     
   } catch (error) {
     console.error('Crawl error:', error);

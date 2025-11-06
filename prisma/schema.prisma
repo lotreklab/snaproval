@@ -26,6 +26,7 @@ model Job {
   zipSize       Int?
   pdfPath       String?
   urls          Url[]
+  width         String?
 
   @@map("jobs")
 }
