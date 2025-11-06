@@ -13,7 +13,7 @@ const router = express.Router();
  */
 router.post('/crawl', async (req, res) => {
   try {
-    const { sitemapUrl, urls, highlightLinks = true, height="1080", width="1470" } = req.body;
+    const { sitemapUrl, urls, highlightLinks = true, width="1470" } = req.body;
     // Create a job-specific directory
     const jobId = Date.now().toString();
     const { jobDir, jobScreenshotDir, jobPdfDir } = createJobDirectories(jobId);

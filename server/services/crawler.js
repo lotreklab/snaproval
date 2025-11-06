@@ -232,11 +232,11 @@ async function addLinkHighlighting(page, domain) {
  * @param {number} index - URL index
  * @param {boolean} highlightLinks - Whether to highlight external links
  */
-async function processUrl(browser, url, jobId, index, highlightLinks = true,  width="1470", height=1080) {
+async function processUrl(browser, url, jobId, index, highlightLinks = true,  width="1470") {
   const page = await browser.newPage();
   
   // Set viewport (capture screenshots at 1470px wide)
-  await page.setViewport({ width: parseInt(width), height: height});
+  await page.setViewport({ width: parseInt(width), height: 1080});
   // Set user agent to avoid bot detection
   await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
 
