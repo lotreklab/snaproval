@@ -67,7 +67,7 @@ function loadJobsIntoMemory(incompleteJobs) {
  * @param {boolean} highlightLinks - Whether to highlight external links
  * @returns {Object} - The created job
  */
-async function createJob(jobId, sitemapUrl, urls, highlightLinks = true) {
+async function createJob(jobId, sitemapUrl, urls, highlightLinks = true, width="") {
   // Create job record in database
   const job = await prisma.job.create({
     data: {
@@ -84,7 +84,8 @@ async function createJob(jobId, sitemapUrl, urls, highlightLinks = true) {
           url,
           status: 'to_do'
         }))
-      }
+      },
+      width: width
     },
     include: {
       urls: true
@@ -101,6 +102,7 @@ async function createJob(jobId, sitemapUrl, urls, highlightLinks = true) {
     status: 'running',
     highlightLinks,
     startTime: job.startTime.toISOString(),
+    width: width,
     urls: job.urls.map(url => ({
       url: url.url,
       status: url.status,

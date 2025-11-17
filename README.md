@@ -15,15 +15,24 @@ This application allows users to take screenshots of a website and download them
    git clone <repository-url>
    cd snaproval
    ```
+2. **Create .env file -> example(.env-example)**
+   ```bash
+   touch .env
+   ```
 
-2. **Install dependencies**
+3. **Install dependencies**
    ```bash
    npm install
    ```
 
-3. **Run the application**
+4. **Setup the application**
    ```bash
-   npm dev
+   npm run setup
+   ```
+
+5. **Run the application**
+   ```bash
+   npm run dev
    ```
 
 ## Usage

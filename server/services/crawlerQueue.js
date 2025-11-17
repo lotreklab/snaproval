@@ -23,7 +23,7 @@ class CrawlerQueue {
   }
 
   // Add URLs to the queue with their job ID
-  addUrls(urls, jobId, highlightLinks = true, processUrlFunction) {
+  addUrls(urls, jobId, highlightLinks = true, processUrlFunction, width) {
     // Add job to counters if not exists
     if (!this.jobCounters.has(jobId)) {
       this.jobCounters.set(jobId, 0);
@@ -36,7 +36,8 @@ class CrawlerQueue {
       index,
       highlightLinks,
       added: Date.now(),
-      processUrlFunction
+      processUrlFunction,
+      width
     }));
     
     this.queue.push(...urlsToAdd);
@@ -201,7 +202,7 @@ class CrawlerQueue {
           const browser = await this.getJobBrowser(item.jobId);
           
           // Process the URL
-          await item.processUrlFunction(browser, item.url, item.jobId, item.index, item.highlightLinks);
+          await item.processUrlFunction(browser, item.url, item.jobId, item.index, item.highlightLinks, item.width);
           
           // Check if this was the last URL for this job
           const remainingForJob = this.queue.filter(qItem => qItem.jobId === item.jobId).length;
