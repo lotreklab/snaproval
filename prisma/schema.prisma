@@ -7,32 +7,32 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
 model Job {
-  id            String   @id @default(cuid())
-  jobId         String   @unique
-  sitemapUrl    String
-  totalUrls     Int
-  processedUrls Int      @default(0)
-  isRunning     Boolean  @default(true)
-  status        String   @default("running") // running, completed, cancelled
+  id             String   @id @map("_id") @default(auto()) @db.ObjectId
+  jobId          String   @unique
+  sitemapUrl     String
+  totalUrls      Int
+  processedUrls  Int      @default(0)
+  isRunning      Boolean  @default(true)
+  status         String   @default("running") // running, completed, cancelled
   highlightLinks Boolean  @default(true)
-  startTime     DateTime
-  completedTime DateTime?
-  zipPath       String?
-  zipSize       Int?
-  pdfPath       String?
-  urls          Url[]
+  startTime      DateTime
+  completedTime  DateTime?
+  zipPath        String?
+  zipSize        Int?
+  pdfPath        String?
+  urls           Url[]
   width         String?
 
   @@map("jobs")
 }
 
 model Url {
-  id          String   @id @default(cuid())
+  id          String   @id @map("_id") @default(auto()) @db.ObjectId
   url         String
   status      String   @default("to_do") // to_do, completed
   imagePath   String?

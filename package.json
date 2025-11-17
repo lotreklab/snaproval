@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "empty-db": "node server/emptyDatabase.js",
     "docker-start": "npm run setup && npm run server:start",
-    "setup": "prisma generate && prisma migrate deploy",
+    "setup": "prisma generate && prisma db push",
     "prisma": "prisma",
     "server:start": "node server/standalone.js"
   },
